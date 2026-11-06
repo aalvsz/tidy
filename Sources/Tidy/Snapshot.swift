@@ -1,6 +1,7 @@
 #if DEBUG
 import SwiftUI
 import AppKit
+import Combine
 
 /// Debug only: renders each tab with live data to PNGs, since the real panel can't be captured headlessly.
 enum Snapshot {
@@ -17,8 +18,25 @@ enum Snapshot {
         print("SINCE", b.since.prefix(6).map { "\($0.id)=\(Int($0.value / 60))m" })
         d.scan()
         while d.scanning { try? await Task.sleep(for: .milliseconds(200)) }
+        for dark in [false, true] {   // the icon at several levels, on a menu bar coloured background
+            let size = NSSize(width: 7 * 34 + 8, height: 44), sheet = NSImage(size: size)
+            sheet.lockFocus()
+            (dark ? NSColor(white: 0.13, alpha: 1) : NSColor(white: 0.93, alpha: 1)).setFill(); NSRect(origin: .zero, size: size).fill()
+            for (i, step) in [0, 1, 3, 5, 7, 9, 12].enumerated() {
+                let tile = NSImage(size: NSSize(width: 18, height: 18))
+                tile.lockFocus()
+                GaugeIcon.image(step: step).draw(in: NSRect(x: 0, y: 0, width: 18, height: 18))
+                (dark ? NSColor.white : NSColor.black).set(); NSRect(x: 0, y: 0, width: 18, height: 18).fill(using: .sourceIn)
+                tile.unlockFocus()
+                tile.draw(in: NSRect(x: 8 + i * 34, y: 6, width: 32, height: 32))
+            }
+            sheet.unlockFocus()
+            if let tiff = sheet.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) {
+                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: dir).appendingPathComponent("icon-\(dark ? "dark" : "light").png"))
+            }
+        }
         for dark in [false, true] { for tab in Tab.allCases {
-            let root = RootView(battery: b, memory: m, disk: d, tab: tab, open: false)
+            let root = RootView(battery: b, memory: m, disk: d, tab: tab, open: true)
                 .background(Color(nsColor: .windowBackgroundColor))
             let host = NSHostingView(rootView: root)
             host.frame = NSRect(x: 0, y: 0, width: 372, height: 580)
@@ -138,5 +156,52 @@ enum SelfTest {
     }
 
     final class KeyWindow: NSWindow { override var canBecomeKey: Bool { true } }
+}
+#endif
+
+#if DEBUG
+/// Debug only: prints physical memory at each stage of a real panel session.
+enum MemTest {
+    static func mb() -> String {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+        _ = withUnsafeMutablePointer(to: &info) { $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) } }
+        return String(format: "now %.0f MB, peak %.0f MB", Double(info.phys_footprint) / 1_048_576, Double(info.ledger_phys_footprint_peak) / 1_048_576)
+    }
+
+    @MainActor static func run() async {
+        func stage(_ s: String) { print(s.padding(toLength: 34, withPad: " ", startingAt: 0), mb()) }
+        NSApp.setActivationPolicy(.accessory)
+        let b = BatteryModel(), m = MemoryModel(), d = DiskModel()
+        try? await Task.sleep(for: .seconds(1)); stage("launched, panel never opened")
+        for _ in 0..<40 { b.readPower() }
+        let tabs = TabHost(battery: b, memory: m, disk: d)
+        let host = NSHostingView(rootView: tabs)
+        host.frame = NSRect(x: 0, y: 0, width: 372, height: 580)
+        let w = SelfTest.KeyWindow(contentRect: host.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        w.contentView = host; w.setFrameOrigin(NSPoint(x: 40, y: 40)); w.alphaValue = 0.01
+        NSApp.activate(ignoringOtherApps: true); w.orderFrontRegardless(); w.makeKey()
+        try? await Task.sleep(for: .seconds(2)); stage("panel open, Battery, empty")
+        await b.sample(); try? await Task.sleep(for: .seconds(1)); stage("Battery with data")
+        for _ in 0..<3 { await b.sample() }; try? await Task.sleep(for: .seconds(1)); stage("Battery after 4 samples")
+        TabHost.select.send(.memory); await m.sample(); try? await Task.sleep(for: .seconds(1)); stage("Memory tab")
+        TabHost.select.send(.disk); try? await Task.sleep(for: .seconds(1)); stage("Disk tab, before scan")
+        d.scan(); while d.scanning { try? await Task.sleep(for: .milliseconds(200)) }
+        try? await Task.sleep(for: .seconds(1)); stage("Disk tab, scan results (\(d.items.count))")
+        TabHost.select.send(.battery); try? await Task.sleep(for: .seconds(1)); stage("back to Battery")
+        w.resignKey(); NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: w); w.orderOut(nil)
+        try? await Task.sleep(for: .seconds(5)); stage("panel closed, 5s later")
+        exit(0)
+    }
+
+    struct TabHost: View {
+        static let select = PassthroughSubject<Tab, Never>()
+        let battery: BatteryModel, memory: MemoryModel, disk: DiskModel
+        @State private var tab = Tab.battery
+        var body: some View {
+            RootView(battery: battery, memory: memory, disk: disk, tab: tab, open: true).id(tab)
+                .onReceive(Self.select) { tab = $0 }
+        }
+    }
 }
 #endif

@@ -104,6 +104,7 @@ enum Known {
         "mds_stores": ("Spotlight", "macOS. Indexing your files"),
         "mdworker_shared": ("Spotlight", "macOS. Indexing your files"),
         "backupd": ("Time Machine", "macOS. Backing up"),
+        "installd": ("App installer", "macOS. An app or update is being installed"),
         "bird": ("iCloud Drive", "macOS. Syncing files"),
         "cloudd": ("iCloud", "macOS. Syncing"),
         "VTDecoderXPCService": ("Video decoding", "macOS. Some app is playing video"),

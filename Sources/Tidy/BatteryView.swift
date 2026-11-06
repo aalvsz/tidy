@@ -1,11 +1,8 @@
 import SwiftUI
-import Charts
 
 @MainActor final class BatteryModel: ObservableObject, ClaudeAdvising {
-    struct Point: Identifiable { let id: Int; let watts: Double }
-
     @Published var state: BatteryState?
-    @Published var history: [Point] = []
+    @Published var history: [Double] = []
     @Published var now: [Usage] = []
     @Published var since: [Usage] = []
     @Published var findings: [Finding] = []
@@ -17,8 +14,8 @@ import Charts
     @Published var advice: String?
     @Published var notice: String?
 
-    private var tick = 0
     private var sampling = false
+    static let historyLength = 60
 
     init() {
         readPower()
@@ -30,9 +27,8 @@ import Charts
         guard let s = Sampling.battery() else { return }
         withAnimation(Motion.spring) {
             state = s
-            tick += 1
-            history.append(Point(id: tick, watts: s.watts))
-            if history.count > 90 { history.removeFirst(history.count - 90) }
+            history.append(s.watts)
+            if history.count > Self.historyLength { history.removeFirst() }
         }
     }
 
@@ -99,7 +95,8 @@ struct BatteryView: View {
     @State private var armed: String?
 
     private var status: (text: String, color: Color) {
-        switch m.state?.level {
+        if let s = m.state, !s.onBattery { return (s.charging ? "Charging" : "Plugged in", .green) }
+        return switch m.state?.level {
         case .light: ("Light use", .green)
         case .moderate: ("Moderate use", .orange)
         case .heavy: ("Heavy drain", .red)
@@ -130,18 +127,7 @@ struct BatteryView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HeroNumber(value: "\(Int((m.state?.watts ?? 0).rounded()))", unit: "W")
                     .overlay(alignment: .trailing) { StatusPill(text: status.text, color: status.color) }
-                Chart(m.history) { p in
-                    AreaMark(x: .value("t", p.id), y: .value("W", p.watts))
-                        .foregroundStyle(LinearGradient(colors: [color.opacity(0.28), color.opacity(0)], startPoint: .top, endPoint: .bottom))
-                        .interpolationMethod(.monotone)
-                    LineMark(x: .value("t", p.id), y: .value("W", p.watts))
-                        .foregroundStyle(color).lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
-                        .interpolationMethod(.monotone)
-                }
-                .chartXAxis(.hidden).chartYAxis(.hidden)
-                .chartXScale(domain: (m.history.first?.id ?? 0)...max(m.history.last?.id ?? 1, (m.history.first?.id ?? 0) + 1))
-                .chartYScale(domain: 0...max(20, (m.history.map(\.watts).max() ?? 0) * 1.15))
-                .frame(height: 44)
+                graph
 
                 HStack(spacing: 0) {
                     stat(m.state.map { "\($0.percent)%" } ?? "–", "Battery")
@@ -151,6 +137,20 @@ struct BatteryView: View {
                 }
             }
         }
+    }
+
+    private var graph: some View {
+        let h = m.history
+        // Fixed length so each update animates between matching points.
+        let values = AnimatableValues(values: Array(repeating: h.first ?? 0, count: BatteryModel.historyLength - h.count) + h)
+        let top = max(20, (h.max() ?? 0) * 1.15)
+        return ZStack {
+            Sparkline(values: values, top: top, visible: h.count, area: true)
+                .fill(LinearGradient(colors: [color.opacity(0.28), color.opacity(0)], startPoint: .top, endPoint: .bottom))
+            Sparkline(values: values, top: top, visible: h.count)
+                .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+        }
+        .frame(height: 44)
     }
 
     private var timeLeft: String {

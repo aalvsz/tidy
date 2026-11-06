@@ -49,6 +49,91 @@ struct Card<Content: View>: View {
     }
 }
 
+/// Values a SwiftUI animation can interpolate between.
+struct AnimatableValues: VectorArithmetic {
+    var values: [Double]
+    static var zero: Self { .init(values: []) }
+    private static func combine(_ a: Self, _ b: Self, _ op: (Double, Double) -> Double) -> Self {
+        .init(values: (0..<max(a.values.count, b.values.count)).map {
+            op($0 < a.values.count ? a.values[$0] : 0, $0 < b.values.count ? b.values[$0] : 0)
+        })
+    }
+    static func + (a: Self, b: Self) -> Self { combine(a, b, +) }
+    static func - (a: Self, b: Self) -> Self { combine(a, b, -) }
+    mutating func scale(by rhs: Double) { values = values.map { $0 * rhs } }
+    var magnitudeSquared: Double { values.reduce(0) { $0 + $1 * $1 } }
+}
+
+/// Smooth line or area graph. Hand-drawn because Swift Charts adds about 200 MB to the process.
+struct Sparkline: Shape {
+    var values: AnimatableValues
+    var top: Double
+    let visible: Int     // leading values are padding until the history fills up
+    var area = false
+
+    var animatableData: AnimatablePair<AnimatableValues, Double> {
+        get { .init(values, top) }
+        set { values = newValue.first; top = newValue.second }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var ys = Array(values.values.suffix(max(visible, 1))).map { rect.height * (1 - min($0 / max(top, 1), 1)) }
+        if ys.count == 1 { ys.append(ys[0]) }
+        guard let first = ys.first else { return Path() }
+        let step = rect.width / CGFloat(ys.count - 1)
+        var p = Path()
+        p.move(to: CGPoint(x: 0, y: first))
+        for i in 1..<ys.count {
+            let a = CGPoint(x: step * CGFloat(i - 1), y: ys[i - 1]), b = CGPoint(x: step * CGFloat(i), y: ys[i])
+            let midX = (a.x + b.x) / 2
+            p.addCurve(to: b, control1: CGPoint(x: midX, y: a.y), control2: CGPoint(x: midX, y: b.y))
+        }
+        if area {
+            p.addLine(to: CGPoint(x: rect.width, y: rect.height))
+            p.addLine(to: CGPoint(x: 0, y: rect.height))
+            p.closeSubpath()
+        }
+        return p
+    }
+}
+
+/// Menu bar icon: a bolt inside a gauge ring that fills as the drain rises.
+enum GaugeIcon {
+    static let steps = 12
+    /// Buckets the reading so the icon only redraws when it would visibly change.
+    static func step(watts: Double, onBattery: Bool) -> Int {
+        onBattery ? max(1, min(steps, Int((watts / 40 * Double(steps)).rounded()))) : 0
+    }
+
+    static func image(step: Int) -> NSImage {
+        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
+            let center = NSPoint(x: rect.midX, y: rect.midY), radius: CGFloat = 7.4
+            func arc(to end: CGFloat, alpha: CGFloat) {
+                let path = NSBezierPath()
+                // 270° sweep with the gap at the bottom. AppKit angles run anticlockwise from east.
+                path.appendArc(withCenter: center, radius: radius, startAngle: 225, endAngle: end, clockwise: true)
+                path.lineWidth = 2.1; path.lineCapStyle = .round
+                NSColor.black.withAlphaComponent(alpha).setStroke()
+                path.stroke()
+            }
+            arc(to: -45, alpha: 0.28)
+            if step > 0 { arc(to: 225 - 270 * CGFloat(step) / CGFloat(steps), alpha: 1) }
+            let bolt = NSBezierPath()
+            let points: [(CGFloat, CGFloat)] = [(0.9, 5.3), (-2.9, -0.7), (-0.3, -0.7), (-0.9, -5.3), (2.9, 0.9), (0.3, 0.9)]
+            for (i, pt) in points.enumerated() {
+                let p = NSPoint(x: center.x + pt.0, y: center.y + pt.1)
+                if i == 0 { bolt.move(to: p) } else { bolt.line(to: p) }
+            }
+            bolt.close()
+            NSColor.black.setFill()
+            bolt.fill()
+            return true
+        }
+        image.isTemplate = true   // macOS tints it to suit the menu bar
+        return image
+    }
+}
+
 struct StatusPill: View {
     let text: String
     let color: Color

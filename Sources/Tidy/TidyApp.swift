@@ -26,23 +26,27 @@ struct RootView: View {
                         .frame(width: 28, height: 28).background(Circle().fill(.primary.opacity(0.06)))
                 }.buttonStyle(PressStyle()).help("Quit Tidy")
             }
-            ZStack {
-                switch tab {
-                case .battery: BatteryView(m: battery).transition(slide)
-                case .memory: MemoryView(m: memory).transition(slide)
-                case .disk: DiskView(m: disk).transition(slide)
+            // Views are dropped while closed: the panel stays mounted for the app's whole life otherwise.
+            if open {
+                ZStack {
+                    switch tab {
+                    case .battery: BatteryView(m: battery).transition(slide)
+                    case .memory: MemoryView(m: memory).transition(slide)
+                    case .disk: DiskView(m: disk).transition(slide)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .mask(LinearGradient(stops: [.init(color: .black, location: 0.94), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+                .overlay(alignment: .bottom) { sheet }
+                footer
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .mask(LinearGradient(stops: [.init(color: .black, location: 0.94), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
-            .overlay(alignment: .bottom) { sheet }
-            footer
         }
+        .frame(maxHeight: .infinity, alignment: .top)
         .padding(12)
         .frame(width: 372, height: 580)   // fixed: resizing a menu bar panel while it's open judders
         // Sample only while the panel is open, and only for the visible tab.
         .task(id: open ? tab : nil) { await monitor() }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in open = true }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in withAnimation(Motion.quick) { open = true } }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { _ in open = false }
     }
 
@@ -122,6 +126,7 @@ struct RootView: View {
     init() {
         #if DEBUG
         if let i = CommandLine.arguments.firstIndex(of: "--snapshot") { Snapshot.schedule(dir: CommandLine.arguments[i + 1]) }
+        if CommandLine.arguments.contains("--memtest") { DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { Task { @MainActor in await MemTest.run() } } }
         if CommandLine.arguments.contains("--selftest") { DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { Task { @MainActor in await SelfTest.run() } } }
         #endif
     }
@@ -130,11 +135,7 @@ struct RootView: View {
         MenuBarExtra {
             RootView(battery: battery, memory: memory, disk: disk)
         } label: {
-            if let s = battery.state, s.onBattery {
-                Text("\(Image(systemName: "bolt.fill")) \(Int(s.watts.rounded()))W")
-            } else {
-                Image(systemName: "bolt.fill")
-            }
+            Image(nsImage: GaugeIcon.image(step: GaugeIcon.step(watts: battery.state?.watts ?? 0, onBattery: battery.state?.onBattery ?? false)))
         }
         .menuBarExtraStyle(.window)
     }
