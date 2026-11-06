@@ -62,6 +62,25 @@ enum SelfTest {
     static func check(_ name: String, _ ok: Bool) { print(ok ? "PASS" : "FAIL", name) }
 
     @MainActor static func run() async {
+        // Text contrast on the worst surface: panel + card + hover tint, in both appearances
+        for (name, look) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+            NSAppearance(named: look)!.performAsCurrentDrawingAppearance {
+                func lum(_ c: [CGFloat]) -> CGFloat {
+                    let f = c.prefix(3).map { $0 <= 0.03928 ? $0 / 12.92 : pow(($0 + 0.055) / 1.055, 2.4) }
+                    return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]
+                }
+                func rgb(_ c: NSColor) -> [CGFloat] { let s = c.usingColorSpace(.sRGB)!; return [s.redComponent, s.greenComponent, s.blueComponent] }
+                let base = rgb(.windowBackgroundColor), ink: CGFloat = name == "dark" ? 1 : 0
+                for (surface, tint) in [("panel", 0.0), ("card+hover", 0.11)] as [(String, CGFloat)] {
+                    let bg = base.map { $0 * (1 - tint) + ink * tint }
+                    for (label, color) in [("secondary", Ink.secondary), ("warning", Ink.warning), ("positive", Ink.positive), ("negative", Ink.negative)] {
+                        let a = lum(rgb(color)), b = lum(bg), ratio = (max(a, b) + 0.05) / (min(a, b) + 0.05)
+                        check("\(name) \(label) on \(surface): \(String(format: "%.1f", ratio)):1", ratio >= 4.5)
+                    }
+                }
+            }
+        }
+
         // Protections
         let q = Apps.quittable()
         check("WindowServer not quittable", !q.contains("WindowServer"))
@@ -130,6 +149,10 @@ enum SelfTest {
         try? await Task.sleep(for: .seconds(1))
         check("idle before opening", !b.loaded)
         w.makeKeyAndOrderFront(nil)
+        try? await Task.sleep(for: .seconds(1))
+        print("  focus: window key \(w.isKeyWindow), app active \(NSApp.isActive)")
+        // macOS can refuse focus to a test window while you work in another app. A clicked menu bar panel still gets it.
+        if !w.isKeyWindow { NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: w) }
         let t = Date()
         while !b.loaded, Date().timeIntervalSince(t) < 12 { try? await Task.sleep(for: .milliseconds(100)) }
         check("opening starts sampling (\(String(format: "%.1f", Date().timeIntervalSince(t)))s to first data)", b.loaded)

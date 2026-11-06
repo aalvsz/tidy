@@ -62,10 +62,10 @@ struct MemoryView: View {
                         }.frame(height: 8)
                         HStack(spacing: 6) {
                             Image(systemName: m.state.swapping ? "exclamationmark.arrow.triangle.2.circlepath" : "internaldrive")
-                                .font(.system(size: 11)).foregroundStyle(m.state.swapping ? .red : .secondary)
-                            Text(swap).font(.system(size: 12)).foregroundStyle(.secondary)
+                                .font(.system(size: 11)).foregroundStyle(m.state.swapping ? Ink.negativeColor : .inkSecondary)
+                            Text(swap).font(.system(size: 12)).foregroundStyle(.inkSecondary)
                             Spacer()
-                            Text("\(total) RAM").font(.system(size: 11)).foregroundStyle(.tertiary)
+                            Text("\(total) RAM").font(.system(size: 11)).foregroundStyle(.inkSecondary)
                         }
                     }
                 }

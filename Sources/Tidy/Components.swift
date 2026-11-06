@@ -7,6 +7,28 @@ enum Motion {
     static var quick: Animation { reduced ? .easeInOut(duration: 0.1) : .spring(response: 0.24, dampingFraction: 0.8) }
 }
 
+/// Solid text colours chosen for at least 4.5:1 contrast on the panel, in light and dark.
+enum Ink {
+    private static func dynamic(light: UInt32, dark: UInt32) -> NSColor {
+        func rgb(_ v: UInt32) -> NSColor {
+            NSColor(srgbRed: CGFloat(v >> 16 & 255) / 255, green: CGFloat(v >> 8 & 255) / 255, blue: CGFloat(v & 255) / 255, alpha: 1)
+        }
+        return NSColor(name: nil) { $0.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? rgb(dark) : rgb(light) }
+    }
+    static let secondary = dynamic(light: 0x505050, dark: 0xC4C4C4)
+    static let warning = dynamic(light: 0x8A3F00, dark: 0xFFB454)
+    static let positive = dynamic(light: 0x0F5F27, dark: 0x6BE08F)
+    static let negative = dynamic(light: 0xA81C1C, dark: 0xFFA69E)
+    static var negativeColor: Color { Color(nsColor: negative) }
+}
+
+extension ShapeStyle where Self == Color {
+    static var inkSecondary: Color { Color(nsColor: Ink.secondary) }
+    static var inkWarning: Color { Color(nsColor: Ink.warning) }
+    static var inkPositive: Color { Color(nsColor: Ink.positive) }
+    static var inkNegative: Color { Color(nsColor: Ink.negative) }
+}
+
 func fmt(_ b: Int64) -> String { ByteCountFormatter.string(fromByteCount: b, countStyle: .memory) }
 
 struct PressStyle: ButtonStyle {
@@ -156,7 +178,7 @@ struct HeroNumber: View {
         HStack(alignment: .firstTextBaseline, spacing: 3) {
             Text(value).font(.system(size: size, weight: .semibold, design: .rounded).monospacedDigit())
                 .contentTransition(.numericText())
-            Text(unit).font(.system(size: unitSize, weight: .semibold, design: .rounded)).foregroundStyle(.secondary)
+            Text(unit).font(.system(size: unitSize, weight: .semibold, design: .rounded)).foregroundStyle(.inkSecondary)
             Spacer(minLength: 6)
         }
     }
@@ -176,7 +198,7 @@ extension View {
 struct SectionLabel: View {
     let text: String
     var body: some View {
-        Text(text).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+        Text(text).font(.system(size: 11, weight: .semibold)).foregroundStyle(.inkSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -197,7 +219,7 @@ struct AppIcon: View {
             if let path {
                 Image(nsImage: Self.icon(path)).resizable()
             } else {
-                Image(systemName: fallback).font(.system(size: 12)).foregroundStyle(.secondary)
+                Image(systemName: fallback).font(.system(size: 12)).foregroundStyle(.inkSecondary)
                     .frame(width: 24, height: 24)
                     .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.primary.opacity(0.07)))
             }
@@ -234,7 +256,7 @@ struct UsageRow: View {
             AppIcon(path: usage.appPath)
             VStack(alignment: .leading, spacing: 3) {
                 Text(Known.title(usage.id)).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                if let subtitle { Text(subtitle).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1) }
+                if let subtitle { Text(subtitle).font(.system(size: 11)).foregroundStyle(.inkSecondary).lineLimit(1) }
                 GeometryReader { g in
                     Capsule().fill(tint.opacity(0.75))
                         .frame(width: max(3, g.size.width * min(1, fraction)))
@@ -250,7 +272,7 @@ struct UsageRow: View {
                     .transition(.scale(scale: 0.8).combined(with: .opacity))
             } else {
                 Text(value).font(.system(size: 13, weight: .medium, design: .rounded).monospacedDigit())
-                    .contentTransition(.numericText()).foregroundStyle(.secondary)
+                    .contentTransition(.numericText()).foregroundStyle(.inkSecondary)
                     .transition(.opacity)
             }
         }
@@ -334,12 +356,12 @@ struct ClaudeSheet: View {
                 Label("Claude's read", systemImage: "sparkles").font(.system(size: 12, weight: .semibold))
                 Spacer()
                 Button(action: onClose) {
-                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(.inkSecondary)
                         .frame(width: 22, height: 22).background(Circle().fill(.primary.opacity(0.07)))
                 }.buttonStyle(PressStyle())
             }
             if thinking {
-                HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Thinking…").foregroundStyle(.secondary) }
+                HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Thinking…").foregroundStyle(.inkSecondary) }
                     .font(.system(size: 12)).frame(maxWidth: .infinity, minHeight: 60)
             } else {
                 ScrollView {

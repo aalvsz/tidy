@@ -22,7 +22,7 @@ struct RootView: View {
                 HStack(spacing: 2) { ForEach(Tab.allCases) { tabButton($0) } }
                     .padding(3).background(Capsule().fill(.primary.opacity(0.06)))
                 Button { NSApp.terminate(nil) } label: {
-                    Image(systemName: "power").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                    Image(systemName: "power").font(.system(size: 11, weight: .semibold)).foregroundStyle(.inkSecondary)
                         .frame(width: 28, height: 28).background(Circle().fill(.primary.opacity(0.06)))
                 }.buttonStyle(PressStyle()).help("Quit Tidy")
             }
@@ -44,6 +44,7 @@ struct RootView: View {
         .frame(maxHeight: .infinity, alignment: .top)
         .padding(12)
         .frame(width: 372, height: 580)   // fixed: resizing a menu bar panel while it's open judders
+        .background(Color(nsColor: .windowBackgroundColor))   // solid: the default blur lets the window behind wash out text
         // Sample only while the panel is open, and only for the visible tab.
         .task(id: open ? tab : nil) { await monitor() }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in withAnimation(Motion.quick) { open = true } }
@@ -64,7 +65,7 @@ struct RootView: View {
                 Image(systemName: t.icon).font(.system(size: 11))
                 Text(t.rawValue).font(.system(size: 12, weight: .medium))
             }
-            .foregroundStyle(tab == t ? .primary : .secondary)
+            .foregroundStyle(tab == t ? Color.primary : .inkSecondary)
             .frame(maxWidth: .infinity).padding(.vertical, 6)
             .background { if tab == t { Capsule().fill(.background).shadow(color: .black.opacity(0.14), radius: 2, y: 1).matchedGeometryEffect(id: "tab", in: ns) } }
             .contentShape(Capsule())

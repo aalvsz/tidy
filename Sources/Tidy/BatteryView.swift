@@ -100,7 +100,7 @@ struct BatteryView: View {
         case .light: ("Light use", .green)
         case .moderate: ("Moderate use", .orange)
         case .heavy: ("Heavy drain", .red)
-        case nil: ("", .secondary)
+        case nil: ("", .inkSecondary)
         }
     }
     private var color: Color { status.color }
@@ -110,7 +110,7 @@ struct BatteryView: View {
             VStack(spacing: 14) {
                 hero
                 if let notice = m.notice {
-                    Text(notice).font(.system(size: 11)).foregroundStyle(.orange)
+                    Text(notice).font(.system(size: 11)).foregroundStyle(.inkWarning)
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 8)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
@@ -161,7 +161,7 @@ struct BatteryView: View {
     private func stat(_ value: String, _ label: String) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(value).font(.system(size: 13, weight: .semibold, design: .rounded).monospacedDigit()).contentTransition(.numericText())
-            Text(label).font(.system(size: 10)).foregroundStyle(.secondary)
+            Text(label).font(.system(size: 10)).foregroundStyle(.inkSecondary)
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -185,14 +185,14 @@ struct BatteryView: View {
             if !m.loaded {
                 Skeleton()
             } else if !history && m.now.isEmpty {
-                Text("Nothing notable right now").font(.system(size: 12)).foregroundStyle(.secondary).padding(20)
+                Text("Nothing notable right now").font(.system(size: 12)).foregroundStyle(.inkSecondary).padding(20)
             } else {
                 UsageList(items: history ? m.since : m.now, tint: history ? .purple : color, quittable: m.quittable, pending: $m.pending,
                           text: history ? { Self.hours($0.value) } : { "\(Int($0.value.rounded()))" }, onQuit: m.quit)
                     .id(history)
                 Text(history ? "Includes time plugged in. Catches background work that comes in bursts."
                              : "Apple's energy impact score. Screen and GPU power aren't split per app.")
-                    .font(.system(size: 10)).foregroundStyle(.tertiary)
+                    .font(.system(size: 10)).foregroundStyle(.inkSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 8)
             }
         }
@@ -215,7 +215,7 @@ struct FindingRow: View {
             AppIcon(path: finding.appPath, fallback: finding.icon)
             VStack(alignment: .leading, spacing: 1) {
                 Text(finding.title).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                Text(finding.detail).font(.system(size: 11)).foregroundStyle(finding.priority ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary)).lineLimit(2)
+                Text(finding.detail).font(.system(size: 11)).foregroundStyle(finding.priority ? AnyShapeStyle(.inkWarning) : AnyShapeStyle(.inkSecondary)).lineLimit(2)
             }
             Spacer(minLength: 6)
             if closable && armed == finding.id {
@@ -247,7 +247,7 @@ struct MiniToggle: View {
     private func seg(_ t: String, _ on: Bool, _ tap: @escaping () -> Void) -> some View {
         Button { withAnimation(Motion.spring) { tap() } } label: {
             Text(t).font(.system(size: 10, weight: .medium)).fixedSize()
-                .foregroundStyle(on ? .primary : .secondary)
+                .foregroundStyle(on ? Color.primary : .inkSecondary)
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background { if on { Capsule().fill(.background).shadow(color: .black.opacity(0.12), radius: 1.5, y: 0.5).matchedGeometryEffect(id: "seg", in: ns) } }
                 .contentShape(Capsule())

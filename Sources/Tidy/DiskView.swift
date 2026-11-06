@@ -97,7 +97,7 @@ struct DiskView: View {
                     }
                 }
                 if let msg = m.message {
-                    Text(msg).font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text(msg).font(.system(size: 11)).foregroundStyle(.inkSecondary)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
@@ -109,7 +109,7 @@ struct DiskView: View {
             Skeleton()
         } else if !m.scanned {
             Text("Scan looks through caches, build output, simulators, agent sessions and logs. Nothing is touched until you confirm.")
-                .font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.horizontal, 24).padding(.top, 20)
+                .font(.system(size: 12)).foregroundStyle(.inkSecondary).multilineTextAlignment(.center).padding(.horizontal, 24).padding(.top, 20)
         } else {
             VStack(spacing: 0) {
                 ForEach(Array($m.items.enumerated()), id: \.element.id) { i, $c in
@@ -138,9 +138,9 @@ struct DiskRow: View {
 
     private var verdict: (String, Color)? {
         switch c.verdict {
-        case .safe: ("Safe", .green)
-        case .review: ("Check", .orange)
-        case .keep: ("Keep", .red)
+        case .safe: ("Safe", .inkPositive)
+        case .review: ("Check", .inkWarning)
+        case .keep: ("Keep", .inkNegative)
         case .unknown: nil
         }
     }
@@ -149,11 +149,11 @@ struct DiskRow: View {
         Button { withAnimation(Motion.quick) { c.selected.toggle() } } label: {
             HStack(spacing: 10) {
                 Image(systemName: c.selected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 17)).foregroundStyle(c.selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.tertiary))
+                    .font(.system(size: 17)).foregroundStyle(c.selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.inkSecondary))
                     .contentTransition(.symbolEffect(.replace))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(c.title).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.middle)
-                    Text(c.reason.isEmpty ? c.group : c.reason).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(c.reason.isEmpty ? c.group : c.reason).font(.system(size: 11)).foregroundStyle(.inkSecondary).lineLimit(1)
                 }
                 Spacer(minLength: 6)
                 if let v = verdict {
@@ -161,7 +161,7 @@ struct DiskRow: View {
                         .padding(.horizontal, 6).padding(.vertical, 2).background(Capsule().fill(v.1.opacity(0.13)))
                         .transition(.scale.combined(with: .opacity))
                 }
-                Text(fmt(c.bytes)).font(.system(size: 12, weight: .medium, design: .rounded).monospacedDigit()).foregroundStyle(.secondary)
+                Text(fmt(c.bytes)).font(.system(size: 12, weight: .medium, design: .rounded).monospacedDigit()).foregroundStyle(.inkSecondary)
             }
             .padding(.horizontal, 8).padding(.vertical, 7)
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.primary.opacity(hover ? 0.06 : 0)))
