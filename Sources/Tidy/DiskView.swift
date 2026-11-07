@@ -30,14 +30,18 @@ import SwiftUI
         Task {
             let res = await Agent.triage(snapshot)
             withAnimation(Motion.spring) {
-                apply(res, to: snapshot)
                 triaging = false
-                message = res.isEmpty ? Agent.unreachable : "Only old, regenerable items were ticked. Chats and backups never are."
+                switch res {
+                case .success(let r):
+                    apply(r, to: snapshot)
+                    message = "Only old, regenerable items were ticked. Chats and backups never are."
+                case .failure(let f): message = f.message
+                }
             }
         }
     }
 
-    /// Results index into the list Claude saw, so match by path: `items` may have changed since.
+    /// Results index into the list the AI saw, so match by path: `items` may have changed since.
     func apply(_ res: [Agent.Item], to snapshot: [Candidate]) {
         for r in res where snapshot.indices.contains(r.id) {
             guard let i = items.firstIndex(where: { $0.id == snapshot[r.id].id }) else { continue }
@@ -67,6 +71,7 @@ import SwiftUI
 
 struct DiskView: View {
     @ObservedObject var m: DiskModel
+    @ObservedObject private var ai = AIConfig.shared
     @State private var confirm = false
 
     var body: some View {
@@ -92,7 +97,7 @@ struct DiskView: View {
                                icon: "magnifyingglass", tint: .accentColor, filled: !m.scanned) { m.scan() }
                         .disabled(m.scanning || m.triaging)
                     if m.scanned {
-                        PillButton(title: m.triaging ? "Checking…" : "Ask Claude what's safe", icon: "sparkles") { m.triage() }
+                        PillButton(title: m.triaging ? "Checking…" : "Ask \(ai.activeName) what's safe", icon: "sparkles") { m.triage() }
                             .disabled(m.triaging || m.scanning)
                     }
                 }

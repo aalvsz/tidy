@@ -103,7 +103,8 @@ enum Sampling {
             } else {
                 let what = type.contains("Display") ? "Keeping the display awake" : "Keeping the Mac from sleeping"
                 let stoppable = app == nil && proc?.isSystem == false && !Known.isManaged(owner)
-                add(owner, Known.title(owner), "\(what) · \(age)", path: proc?.appPath, closeApp: app, stopPID: stoppable ? pid : nil)
+                // One row per stoppable process: two caffeinates are two things to close, not one.
+                add(stoppable ? "\(owner)-\(pid ?? 0)" : owner, Known.title(owner), "\(what) · \(age)", path: proc?.appPath, closeApp: app, stopPID: stoppable ? pid : nil)
             }
         }
         return out.values.sorted { ($0.priority ? 1 : 0, $0.minutes) > ($1.priority ? 1 : 0, $1.minutes) }

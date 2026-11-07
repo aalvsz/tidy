@@ -62,6 +62,20 @@ struct PillButton: View {
     }
 }
 
+struct CircleButton: View {
+    let icon: String
+    var size: CGFloat = 28
+    var on = false
+    let help: String
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon).font(.system(size: size * 0.4, weight: .semibold)).foregroundStyle(on ? Color.primary : .inkSecondary)
+                .frame(width: size, height: size).background(Circle().fill(.primary.opacity(on ? 0.12 : 0.06)))
+        }.buttonStyle(PressStyle()).help(help)
+    }
+}
+
 struct Card<Content: View>: View {
     @ViewBuilder let content: Content
     var body: some View {
@@ -325,47 +339,45 @@ struct Skeleton: View {
     }
 }
 
-/// A tab whose data Claude can explain. The sheet and footer in RootView work from this alone.
-@MainActor protocol ClaudeAdvising: AnyObject {
-    var showClaude: Bool { get set }
+/// A tab whose data the AI can explain. The sheet and footer in RootView work from this alone.
+@MainActor protocol Advising: AnyObject {
+    var showAdvice: Bool { get set }
     var thinking: Bool { get set }
     var advice: String? { get set }
     var loaded: Bool { get }
     var prompt: String { get }
 }
 
-extension ClaudeAdvising {
+extension Advising {
     func explain() {
-        withAnimation(Motion.spring) { showClaude = true; thinking = true }
+        withAnimation(Motion.spring) { showAdvice = true; thinking = true }
         let prompt = prompt
         Task {
             let r = await Agent.ask(prompt)
-            withAnimation(Motion.spring) { advice = r; thinking = false }
+            withAnimation(Motion.spring) { advice = r.text; thinking = false }
         }
     }
 }
 
-/// Slides up over the tab with Claude's answer.
-struct ClaudeSheet: View {
+/// Slides up over the tab with the AI's answer.
+struct AdviceSheet: View {
+    let name: String
     let text: String?
     let thinking: Bool
     let onClose: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label("Claude's read", systemImage: "sparkles").font(.system(size: 12, weight: .semibold))
+                Label("\(name)'s read", systemImage: "sparkles").font(.system(size: 12, weight: .semibold))
                 Spacer()
-                Button(action: onClose) {
-                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(.inkSecondary)
-                        .frame(width: 22, height: 22).background(Circle().fill(.primary.opacity(0.07)))
-                }.buttonStyle(PressStyle())
+                CircleButton(icon: "xmark", size: 22, help: "Close", action: onClose)
             }
             if thinking {
                 HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Thinking…").foregroundStyle(.inkSecondary) }
                     .font(.system(size: 12)).frame(maxWidth: .infinity, minHeight: 60)
             } else {
                 ScrollView {
-                    Text(text ?? Agent.unreachable)
+                    Text(text ?? "")
                         .font(.system(size: 12)).lineSpacing(3).textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }.frame(maxHeight: 220)

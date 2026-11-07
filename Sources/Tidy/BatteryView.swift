@@ -1,6 +1,6 @@
 import SwiftUI
 
-@MainActor final class BatteryModel: ObservableObject, ClaudeAdvising {
+@MainActor final class BatteryModel: ObservableObject, Advising {
     @Published var state: BatteryState?
     @Published var history: [Double] = []
     @Published var now: [Usage] = []
@@ -9,7 +9,7 @@ import SwiftUI
     @Published var quittable: Set<String> = []
     @Published var loaded = false
     @Published var pending: String?
-    @Published var showClaude = false
+    @Published var showAdvice = false
     @Published var thinking = false
     @Published var advice: String?
     @Published var notice: String?

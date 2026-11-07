@@ -1,12 +1,12 @@
 import SwiftUI
 
-@MainActor final class MemoryModel: ObservableObject, ClaudeAdvising {
+@MainActor final class MemoryModel: ObservableObject, Advising {
     @Published var state = MemoryState()
     @Published var apps: [Usage] = []
     @Published var quittable: Set<String> = []
     @Published var loaded = false
     @Published var pending: String?
-    @Published var showClaude = false
+    @Published var showAdvice = false
     @Published var thinking = false
     @Published var advice: String?
     private var sampling = false

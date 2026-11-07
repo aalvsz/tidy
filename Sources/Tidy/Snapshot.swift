@@ -35,8 +35,9 @@ enum Snapshot {
                 try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: dir).appendingPathComponent("icon-\(dark ? "dark" : "light").png"))
             }
         }
-        for dark in [false, true] { for tab in Tab.allCases {
-            let root = RootView(battery: b, memory: m, disk: d, tab: tab, open: true)
+        let pages = Tab.allCases.map { ($0.rawValue, $0, false) } + [("Settings", Tab.battery, true)]
+        for dark in [false, true] { for (name, tab, settings) in pages {
+            let root = RootView(battery: b, memory: m, disk: d, tab: tab, open: true, settings: settings)
                 .background(Color(nsColor: .windowBackgroundColor))
             let host = NSHostingView(rootView: root)
             host.frame = NSRect(x: 0, y: 0, width: 372, height: 580)
@@ -47,7 +48,7 @@ enum Snapshot {
             try? await Task.sleep(for: .milliseconds(900))
             guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { continue }
             host.cacheDisplay(in: host.bounds, to: rep)
-            let url = URL(fileURLWithPath: dir).appendingPathComponent("\(tab.rawValue)-\(dark ? "dark" : "light").png")
+            let url = URL(fileURLWithPath: dir).appendingPathComponent("\(name)-\(dark ? "dark" : "light").png")
             try? rep.representation(using: .png, properties: [:])?.write(to: url)
             w.orderOut(nil)
         } }
@@ -127,12 +128,12 @@ enum SelfTest {
         let caf = Process(); caf.executableURL = URL(fileURLWithPath: "/usr/bin/caffeinate"); caf.arguments = ["-i", "-t", "120"]
         try? caf.run(); try? await Task.sleep(for: .seconds(1))
         let bm = BatteryModel(); await bm.sample()
-        let blocker = bm.findings.first { $0.id == "caffeinate" }
+        let blocker = bm.findings.first { $0.stopPID == caf.processIdentifier }
         check("sleep blocker found and closable", blocker?.stopPID == caf.processIdentifier && blocker?.needsAdmin == false)
         if let blocker { bm.close(blocker) }
         try? await Task.sleep(for: .seconds(9))
         check("Close stopped the process", !caf.isRunning)
-        check("blocker gone, no warning shown", !bm.findings.contains { $0.id == "caffeinate" } && bm.notice == nil)
+        check("blocker gone, no warning shown", !bm.findings.contains { $0.stopPID == caf.processIdentifier } && bm.notice == nil)
         if caf.isRunning { caf.terminate() }
         let store = bm.findings.first { $0.title == "App Store install" }
         if let store { check("App Store install asks for admin", store.needsAdmin && store.stopPID != nil) } else { print("SKIP no App Store install right now") }
@@ -225,6 +226,80 @@ enum MemTest {
             RootView(battery: battery, memory: memory, disk: disk, tab: tab, open: true).id(tab)
                 .onReceive(Self.select) { tab = $0 }
         }
+    }
+}
+#endif
+
+#if DEBUG
+/// Debug only: every AI provider path. API formats go to a local stub, so no real key is needed.
+enum AITest {
+    static let stub = """
+    import http.server, json, sys
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a): pass
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            ok = body.get("messages", [{}])[0].get("content") and body.get("model") == "stub-model"
+            if self.path == "/v1/chat/completions" and ok and self.headers.get("Authorization") == "Bearer good":
+                out, code = {"choices": [{"message": {"content": "OK-openai"}}]}, 200
+            elif self.path == "/v1/messages" and ok and self.headers.get("x-api-key") == "good" and self.headers.get("anthropic-version") and body.get("max_tokens"):
+                out, code = {"content": [{"type": "text", "text": "OK-anthropic"}]}, 200
+            else:
+                out, code = {"error": {"message": "bad key"}}, 401
+            data = json.dumps(out).encode()
+            self.send_response(code); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data)
+    http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
+    """
+
+    @MainActor static func run() async {
+        let check = SelfTest.check
+        let ai = AIConfig.shared, saved = ai.provider
+
+        ai.provider = nil
+        check("auto picks \(ai.active?.title ?? "nothing") (Claude Code is installed here)", ai.active == .claude)
+        check("finds codex outside ~/.local/bin", Agent.path(of: "codex") != nil)
+
+        Keychain.save("secret-1", account: "selftest")
+        let read = Keychain.read("selftest"), exists = Keychain.exists("selftest")
+        Keychain.save("", account: "selftest")
+        check("keychain save, read, delete", read == "secret-1" && exists && !Keychain.exists("selftest"))
+
+        let port = 18_000 + Int.random(in: 0..<1000), server = Process()
+        server.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        server.arguments = ["-c", stub, "\(port)"]
+        try? server.run()
+        try? await Task.sleep(for: .seconds(1))
+        let base = "http://127.0.0.1:\(port)/v1"
+        func ask(_ p: Provider, key: String, url: String = base) async -> Result<String, Agent.Failure> {
+            await Agent.ask("Reply OK", with: Setup(provider: p, model: "stub-model", url: url, key: key))
+        }
+        check("OpenAI format request and parse", (try? await ask(.openai, key: "good").get()) == "OK-openai")
+        check("custom endpoint uses OpenAI format", (try? await ask(.custom, key: "good").get()) == "OK-openai")
+        check("Anthropic format request and parse", (try? await ask(.anthropic, key: "good").get()) == "OK-anthropic")
+        let bad = await ask(.openai, key: "wrong").text
+        check("bad key shows the provider's error (\(bad))", bad.contains("bad key"))
+        let t = Date(), down = await ask(.openai, key: "good", url: "http://127.0.0.1:9/v1").text
+        check("unreachable server fails fast (\(String(format: "%.1f", Date().timeIntervalSince(t)))s): \(down)", down.hasPrefix("Couldn't reach") && Date().timeIntervalSince(t) < 10)
+        check("bad URL is caught", (await ask(.custom, key: "", url: "nope")).text == "That URL doesn't look right.")
+
+        ai.provider = .openai
+        if !ai.keyed.contains(.openai) { check("missing key explained", (await Agent.ask("x")).text.contains("needs an API key")) }
+
+        for p in [Provider.codex, .claude] {
+            ai.provider = p
+            let t = Date(), r = await Agent.ask("Reply with just the word OK.")
+            check("\(p.title) answered in \(Int(Date().timeIntervalSince(t)))s: \(r.text.prefix(60))", (try? r.get()) != nil)
+        }
+        ai.provider = .codex
+        let c = Candidate(id: "/tmp/x", title: "Old cache", group: "Old cache", category: "Caches", bytes: 1 << 30, modified: Date(timeIntervalSinceNow: -90 * 86_400))
+        let tri = await Agent.triage([c])
+        switch tri {
+        case .success(let r): check("Codex triage parses: \(r.first.map { "\($0.verdict) – \($0.reason)" } ?? "empty")", r.count == 1)
+        case .failure(let f): check("Codex triage parses: \(f.message)", false)
+        }
+        // exit() skips defer, and a live stub would hold the output pipe open.
+        server.terminate(); ai.provider = saved
+        exit(0)
     }
 }
 #endif
