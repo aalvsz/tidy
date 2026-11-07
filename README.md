@@ -53,8 +53,9 @@ swift build
 .build/debug/Tidy --selftest
 .build/debug/Tidy --snapshot <folder>
 .build/debug/Tidy --aitest
+TIDY_TEST_KEY=... .build/debug/Tidy --endpoint <base URL> <model>
 ```
 
-`--aitest` checks both API formats against a local stub server, so you don't need a key. It also asks each installed CLI for a real answer.
+`--aitest` checks both API formats against a local stub server, so you don't need a key. It also asks each installed CLI for a real answer. `--endpoint` sends a ping and the real battery question to any OpenAI-compatible API. It reads the key from `TIDY_TEST_KEY`, so the key never appears in the command line.
 
 The self-test briefly opens and quits Chess, starts and stops `caffeinate`, and moves one empty test folder to the Trash.

@@ -136,6 +136,10 @@ struct RootView: View {
         #if DEBUG
         if let i = CommandLine.arguments.firstIndex(of: "--snapshot") { Snapshot.schedule(dir: CommandLine.arguments[i + 1]) }
         if CommandLine.arguments.contains("--memtest") { DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { Task { @MainActor in await MemTest.run() } } }
+        if let i = CommandLine.arguments.firstIndex(of: "--endpoint") {
+            let a = CommandLine.arguments
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { Task { @MainActor in await AITest.endpoint(url: a[i + 1], model: a[i + 2]) } }
+        }
         if CommandLine.arguments.contains("--aitest") { DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { Task { @MainActor in await AITest.run() } } }
         if CommandLine.arguments.contains("--selftest") { DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { Task { @MainActor in await SelfTest.run() } } }
         #endif

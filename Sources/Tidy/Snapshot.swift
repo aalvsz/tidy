@@ -251,6 +251,18 @@ enum AITest {
     http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
     """
 
+    /// Asks a real OpenAI-compatible endpoint the battery question. The key comes from TIDY_TEST_KEY, never argv.
+    @MainActor static func endpoint(url: String, model: String) async {
+        let b = BatteryModel(); await b.sample()
+        let s = Setup(provider: .custom, model: model, url: url, key: ProcessInfo.processInfo.environment["TIDY_TEST_KEY"] ?? "")
+        for (name, prompt) in [("ping", "Reply with just the word OK."), ("battery advice", b.prompt)] {
+            let t = Date(), r = await Agent.ask(prompt, with: s)
+            SelfTest.check("\(model) \(name) in \(Int(Date().timeIntervalSince(t)))s", (try? r.get()) != nil)
+            print(r.text + "\n")
+        }
+        exit(0)
+    }
+
     @MainActor static func run() async {
         let check = SelfTest.check
         let ai = AIConfig.shared, saved = ai.provider

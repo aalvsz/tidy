@@ -15,13 +15,12 @@ enum Provider: String, CaseIterable, Identifiable, Sendable {
         case .custom: "Custom endpoint"
         }
     }
-    /// Short name for button labels.
+    /// Short name for button labels: the subscription's own name, or just "AI" for an API key.
     var name: String {
         switch self {
-        case .claude, .anthropic: "Claude"
-        case .codex: "Codex"
-        case .openai: "OpenAI"
-        case .custom: "AI"
+        case .claude: "Claude"
+        case .codex: "ChatGPT"
+        case .openai, .anthropic, .custom: "AI"
         }
     }
     var subtitle: String {
