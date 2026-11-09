@@ -23,7 +23,17 @@ The **Ask** buttons explain what Tidy found and suggest what to delete. Everythi
 
 API keys are stored in your Keychain. The chosen provider receives process names and file paths from the current list. Nothing leaves the Mac until you press Ask.
 
-## Build
+## Install
+
+```bash
+brew install --cask aalvsz/tidy/tidy
+```
+
+Then open Tidy. It lives in the menu bar and needs no setup. Requires macOS 14 or later.
+
+The app is not notarized, so the cask clears macOS's download quarantine flag for you. If you download `Tidy.zip` from the Releases page instead, right-click the app and choose Open the first time.
+
+## Build from source
 
 Requires macOS 14 or later and the Swift toolchain.
 
@@ -32,7 +42,7 @@ Requires macOS 14 or later and the Swift toolchain.
 open Tidy.app
 ```
 
-Copy `Tidy.app` to `/Applications` to keep it.
+Copy `Tidy.app` to `/Applications` to keep it. `./release.sh` builds the universal zip used for releases.
 
 ## Safety
 
